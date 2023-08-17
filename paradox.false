@@ -73,7 +73,7 @@
 	{ while state == CONTINUE }
 	[q;0=][
 		{ if current_char = EOF }
-		c;[
+		c;1_=[
 			r;! c: { current_char <- read_char() }
 		]?
 
@@ -148,6 +148,7 @@
 
 		{ elseif c = [ }
 		c;'[= $[%~1_\]?[
+			f;                 { backup fn_id }
 			"jmp end_" f;. 10, { skip generated code }
 			x;!                { call compile_fn }
 
@@ -161,6 +162,11 @@
 
 			{ if state != ERROR }
 			q;2=~ [
+				{ emit push fn ref }
+				{ fn_id is top }
+				"sub r12, 8" 10,
+				"mov qword[r12], fun_" . 10,
+
 				0  q: { state <- CONTINUE }
 				1_ c: { clear current_char }
 			]?
@@ -176,6 +182,21 @@
 			1 q: { state <- DONE }
 		]?
 
+		{ elseif c is UTF-8 }
+		c;195= $[%~1_\]?[
+			r;! c: { c <- read_char() }
+
+			c;184=         $[ 'O c:	]? { if c = ø then c <- O }
+			c;159= $[%~1_\]?[ 'B c:	]? { if c = ß then c <- B }
+			~["unknown UTF-8 character"]e;! { else error }
+		]?
+
+		{ elseif c = ø then c <- O }
+		c;248= $[%~1_\]?[ 'O c: ]?
+
+		{ elseif c = ß then c <- B }
+		c;223= $[%~1_\]?[ 'B c: ]?
+
 		{ elseif c = { }
 		c;'{= $[%~1_\]?[
 			[r;!'}=~][]# { while read_char() != (closing bracket) }
@@ -183,7 +204,7 @@
 		]?
 
 		{ else error }
-		~["invalid character: "c;,]e;!
+		~["unknown character: "c;,]e;!
 	]#
 
 	{ if state != ERROR }
