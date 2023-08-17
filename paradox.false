@@ -1,0 +1,262 @@
+{
+	variables:
+
+	c: current_char
+	q: state: 0=CONTINUE, 1=DONE, 2=ERROR
+
+	f: fn_counter
+	s: str_counter
+
+	i: current_int
+
+	l: line_number
+	p: line_position
+
+	x: compile_fn
+	r: read_char
+	e: error
+}
+
+0  f: { fn_counter <- 0 }
+0  s: { str_counter <- 0 }
+1_ i: { current_int <- -1 }
+
+1  l: { line_number <- 1 }
+0  p: { line_position <- 0 }
+
+{ read_char() }
+[
+	^ { input <- getchar() }
+	{ if input = newline }
+	$10=$[
+		l; 1+ l: { increment line_number }
+		0 p:     { reset line_position }
+	]?
+	{ else }
+	~[
+		p; 1+ p: { increment line_position }
+	]?
+]r:
+
+{ error(condition, message) }
+[
+	{ if condition}
+	\ [
+		10,"%fatal FALSE syntax error at " { first part of error message }
+		l;.":"p;.": "                      { print line_number and line_position }
+		$! 10,                             { call message }
+		2q:                                { state <- ERROR }
+	]?
+	% { pop message }
+]e:
+
+{ compile_fn() }
+[
+	f;      { push fn_counter }
+	$ 1+ f: { increment fn_counter }
+
+	"fun_" $. ":" 10, { emit label }
+
+	{
+		string stack layout, from top to bottom:
+
+		repeat:
+			id (if -1, we've reached the end)
+			length
+			last .. first char
+	}
+	1_ { string stack end }
+
+	0  q: { state <- CONTINUE }
+	1_ c: { current_char <- EOF }
+
+	{ while state == CONTINUE }
+	[q;0=][
+		{ if current_char = EOF }
+		c;[
+			r;! c: { current_char <- read_char() }
+		]?
+
+		{ if '0'-1 < c < '9'+1 }
+		c;$ '0 1- > \ '9 1+ \ > & $[
+			i;1_=[0 i:]?       { if current_int = -1: current_int <- 0 }
+			i; 10* c; '0- + i: { current_int = current_int * 10 + current_char - '0'
+			1_ c:              { consume current_char }
+		]?
+
+		{ elseif current_int != -1 }
+		i;1_=~ $[%~1_\]?[
+			{ emit push int }
+			"sub r12, 8" 10,
+			"mov qword[r12], " i;. 10,
+
+			1_ i: { clear current_int }
+		]?
+
+		{ elseif a-1 < c < z+1 }
+		c;$ 'a 1- > \ 'z 1+ \ > & $[%~1_\]?[
+			{ emit push var ref }
+			"sub r12, 8" 10,
+			"mov qword[r12], var_" c;, 10,
+		]?
+
+		{ elseif c = ' }
+		c;''= $[%~1_\]?[
+			r;! { read character literal }
+			$1_=["unterminated char literal"]e;! { check for EOF }
+			{ if state != ERROR }
+			q;2=~ [
+				{ emit push char }
+				"sub r12, 8" 10,
+				"mov qword[r12], " . 10,
+			]?
+		]?
+
+		{ elseif c = " }
+		c;'"= $[%~1_\]?[
+			% { drop true to manipulate stack below }
+			0 { length <- 0 }
+
+			{ while read_char() != " and state != ERROR }
+			[
+				r;!           { push read_char() }
+				$1_=["unterminated string literal"]e;! { check for EOF }
+				$'"=~ q;2=~ & { condition }
+			][
+				\  { swap length to top }
+				1+ { increment length }
+			]#
+			% { drop " or EOF }
+
+			{ if state != ERROR }
+			q;2=~ [
+				s;      { id <- str_counter }
+				$ 1+ s: { increment str_counter }
+
+				{ emit print string }
+				"mov rax, 1" 10,
+				"mov rdi, 1" 10,
+				"mov rsi, str_" 0 ø . 10,
+				"mov rdx, "     1 ø . 10,
+				"syscall" 10,
+
+				1_ c: { consume current_char }
+			]?
+
+			1_ { push true }
+		]?
+
+		{ elseif c = [ }
+		c;'[= $[%~1_\]?[
+			"jmp end_" f;. 10, { skip generated code }
+			x;!                { call compile_fn }
+
+			{ if state = ERROR }
+			q;2=[
+				{ stack is corrupted now }
+				1_ { push true to skip remaining elseif branches }
+			]?
+
+			q;2=~ c;']=~ & ["unterminated lambda"]e;! { ensure current_char was ] }
+
+			{ if state != ERROR }
+			q;2=~ [
+				0  q: { state <- CONTINUE }
+				1_ c: { clear current_char }
+			]?
+		]?
+
+		{ elseif c is whitespace }
+		c;9= c;10= | c;32= | $[%~1_\]?[
+			1_ c: { consume current_char }
+		]?
+
+		{ elseif c = EOF or c = ] }
+		c;1_= c;']= | $[%~1_\]?[
+			1 q: { state <- DONE }
+		]?
+
+		{ elseif c = { }
+		c;'{= $[%~1_\]?[
+			[r;!'}=~][]# { while read_char() != (closing bracket) }
+			1_ c:        { clear current_char }
+		]?
+
+		{ else error }
+		~["invalid character: "c;,]e;!
+	]#
+
+	{ if state != ERROR }
+	q;2=~[
+		"ret" 10, { emit return to caller }
+
+		{ string stack is top }
+		{ while top != -1 }
+		[$1_=~][
+			{ id is top }
+			"str_" . ": db " { emit label }
+
+			{ length is top }
+			$ { copy length }
+
+			{ print string }
+			{ while length > 0}
+			[$ 0 >][
+				$ 1+ ø .     { print nth item }
+				1-           { decrement length }
+				$ 0 > [","]? { if length > 0 emit , }
+			]#
+			% { drop 0 }
+
+			{ remove string }
+			{ while length > 0 }
+			[$ 0 >][
+				\  { swap last char with length }
+				%  { drop last char }
+				1- { decrement length }
+			]#
+			% { drop 0 }
+
+			10, { newline }
+		]#
+		% { drop string stack end }
+
+		{ function counter is top now }
+		"end_" . ":" 10, { end label }
+	]?
+] x:
+
+"section .text" 10,
+
+x;! { call compile_fn }
+
+{ if state != ERROR }
+q;2=~[
+
+{ emit setup and stack }
+
+1000000
+"global _start
+_start:
+lea r12, [stack+8*"$."]
+call fun_0
+mov rax, 60
+mov rdi, 0
+syscall
+section .bss
+stack: resq "."
+"
+
+{ emit variables }
+
+"section .data" 10,
+
+'a { iter <- a}
+{ while iter != z+1}
+[$ 'z1+ =~][
+	"var_" $, ": dq 0" 10, { emit allocation }
+	1+                     { increment iter }
+]#
+% { drop iter }
+
+]?
