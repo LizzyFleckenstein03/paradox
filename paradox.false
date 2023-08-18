@@ -26,7 +26,7 @@
 
 { read_char() }
 [
-	^ { input <- getchar() }
+	ß^ { input <- getchar() }
 	{ if input = newline }
 	$10=$[
 		l; 1+ l: { increment line_number }
@@ -80,7 +80,7 @@
 		{ if '0'-1 < c < '9'+1 }
 		c;$ '0 1- > \ '9 1+ \ > & $[
 			i;1_=[0 i:]?       { if current_int = -1: current_int <- 0 }
-			i; 10* c; '0- + i: { current_int = current_int * 10 + current_char - '0'
+			i; 10* c; '0- + i: { current_int = current_int * 10 + current_char - '0' }
 			1_ c:              { consume current_char }
 		]?
 
@@ -98,6 +98,8 @@
 			{ emit push var ref }
 			"sub r12, 8" 10,
 			"mov qword[r12], var_" c;, 10,
+
+			1_ c: { consume current_char }
 		]?
 
 		{ elseif c = ' }
@@ -109,6 +111,8 @@
 				{ emit push char }
 				"sub r12, 8" 10,
 				"mov qword[r12], " . 10,
+
+				1_ c: { consume current_char }
 			]?
 		]?
 
@@ -146,8 +150,8 @@
 			1_ { push true }
 		]?
 
-		{ elseif c = [ }
-		c;'[= $[%~1_\]?[
+		{ elseif c = (opening bracket) }
+		c;91= $[%~1_\]?[
 			f;                 { backup fn_id }
 			"jmp end_" f;. 10, { skip generated code }
 			x;!                { call compile_fn }
@@ -158,7 +162,7 @@
 				1_ { push true to skip remaining elseif branches }
 			]?
 
-			q;2=~ c;']=~ & ["unterminated lambda"]e;! { ensure current_char was ] }
+			q;2=~ c;93=~ & ["unterminated lambda"]e;! { ensure current_char was (closing bracket) }
 
 			{ if state != ERROR }
 			q;2=~ [
@@ -177,8 +181,8 @@
 			1_ c: { consume current_char }
 		]?
 
-		{ elseif c = EOF or c = ] }
-		c;1_= c;']= | $[%~1_\]?[
+		{ elseif c = EOF or c = (closing bracket) }
+		c;1_= c;93= | $[%~1_\]?[
 			1 q: { state <- DONE }
 		]?
 
@@ -197,11 +201,216 @@
 		{ elseif c = ß then c <- B }
 		c;223= $[%~1_\]?[ 'B c: ]?
 
-		{ elseif c = { }
-		c;'{= $[%~1_\]?[
-			[r;!'}=~][]# { while read_char() != (closing bracket) }
-			1_ c:        { clear current_char }
+		{ elseif c = (opening brace) }
+		c;123= $[%~1_\]?[
+			[r;!125=~][]# { while read_char() != (closing brace) }
+			1_ c:         { clear current_char }
 		]?
+
+		{ elseif c = $ }
+		c;'$= $[%~1_\]?[
+"mov rax, [r12]
+sub r12, 8
+mov [r12], rax
+"
+		1_ c:]?
+
+		{ elseif c = % }
+		c;'%= $[%~1_\]?[
+"add r12, 8
+"
+		1_ c:]?
+
+		{ elseif c = \ }
+		c;'\= $[%~1_\]?[
+"mov rax, [r12]
+mov rbx, [r12+8]
+mov [r12], rbx
+mov [r12+8], rax
+"
+		1_ c:]?
+
+		{ elseif c = @ }
+		c;'@= $[%~1_\]?[
+"mov rax, [r12]
+mov rbx, [r12+8]
+mov rcx, [r12+16]
+mov [r12], rcx
+mov [r12+8], rax
+mov [r12+16], rbx
+"
+		1_ c:]?
+
+		{ elseif c = O }
+		c;'O= $[%~1_\]?[
+"mov rax, [r12]
+lea rax, [r12+8*rax]
+mov rax, [rax+8]
+mov [r12], rax
+"
+		1_ c:]?
+
+		{ elseif c = + }
+		c;'+= $[%~1_\]?[
+"mov eax, [r12]
+add r12, 8
+add [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = - }
+		c;'-= $[%~1_\]?[
+"mov eax, [r12]
+add r12, 8
+sub [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = * }
+		c;'*= $[%~1_\]?[
+"mov eax, [r12+8]
+imul dword[r12]
+add r12, 8
+mov [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = / }
+		c;'/= $[%~1_\]?[
+"xor edx, edx
+mov eax, [r12+8]
+idiv dword[r12]
+add r12, 8
+mov [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = _ }
+		c;'_= $[%~1_\]?[
+"neg dword[r12]
+"
+		1_ c:]?
+
+		{ elseif c = & }
+		c;'&= $[%~1_\]?[
+"mov eax, [r12]
+and eax, [r12+8]
+add r12, 8
+mov [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = | }
+		c;'|= $[%~1_\]?[
+"mov eax, [r12]
+or eax, [r12+8]
+add r12, 8
+mov [r12], eax
+"
+		1_ c:]?
+
+		{ elseif c = ~ }
+		c;'~= $[%~1_\]?[
+"not dword[r12]
+"
+		1_ c:]?
+
+		{ elseif c = > }
+		c;'>= $[%~1_\]?[
+"mov ebx, 0
+mov ecx, -1
+add r12, 8
+mov eax, [r12]
+cmp eax, [r12-8]
+cmovg ebx, ecx
+mov [r12], ebx
+"
+		1_ c:]?
+
+		{ elseif c = '=' }
+		c;'== $[%~1_\]?[
+"mov ebx, 0
+mov ecx, -1
+add r12, 8
+mov eax, [r12]
+cmp eax, [r12-8]
+cmove ebx, ecx
+mov [r12], ebx
+"
+		1_ c:]?
+
+		{ elseif c = ! }
+		c;'!= $[%~1_\]?[
+"add r12, 8
+call [r12-8]
+"
+		1_ c:]?
+
+		{ elseif c = ? }
+		c;'?= $[%~1_\]?[
+"call conditional
+"
+		1_ c:]?
+
+		{ elseif c = # }
+		c;'#= $[%~1_\]?[
+"call loop
+"
+		1_ c:]?
+
+		{ elseif c = : }
+		c;':= $[%~1_\]?[
+"add r12, 16
+mov rax, [r12-16]
+mov rbx, [r12-8]
+mov [rax], rbx
+"
+		1_ c:]?
+
+		{ elseif c = ; }
+		c;';= $[%~1_\]?[
+"mov rax, [r12]
+mov rax, [rax]
+mov [r12], rax
+"
+		1_ c:]?
+
+		{ elseif c = , }
+		c;',= $[%~1_\]?[
+"mov rax, 1
+mov rdi, 1
+mov rsi, r12
+mov rdx, 1
+syscall
+add r12, 8
+"
+		1_ c:]?
+
+		{ elseif c = ^ }
+		c;'^= $[%~1_\]?[
+"sub r12, 8
+mov qword[r12], 0
+mov rax, 0
+mov rdi, 0
+mov rsi, r12
+mov rdx, 1
+syscall
+mov ebx, [r12]
+mov ecx, -1
+cmp rax, 0
+cmove ebx, ecx
+mov [r12], ebx
+"
+		1_ c:]?
+
+		{ elseif c = . }
+		c;'.= $[%~1_\]?[
+"call print_num
+"
+		1_ c:]?
+
+		{ elseif c = B }
+		c;'B= $[%~1_\]?[1_ c:]?
 
 		{ else error }
 		~["unknown character: "c;,]e;!
@@ -254,6 +463,66 @@ x;! { call compile_fn }
 { if state != ERROR }
 q;2=~[
 
+{ builtin functions }
+"conditional:
+add r12, 16
+mov eax, [r12-8]
+cmp eax, 0
+je .return
+call [r12-16]
+.return:
+ret
+loop:
+add r12, 16
+sub rsp, 16
+mov rax, [r12-8]
+mov [rsp], rax
+mov rax, [r12-16]
+mov [rsp+8], rax
+.loop:
+call [rsp]
+add r12, 8
+mov eax, [r12-8]
+cmp eax, 0
+je .return
+call [rsp+8]
+jmp .loop
+.return:
+add rsp, 16
+ret
+print_num:
+mov rcx, rsp
+sub rsp, 16
+mov eax, dword[r12]
+add r12, 8
+mov ebx, eax
+neg ebx
+cmp eax, 0
+cmovl eax, ebx
+mov edi, 10
+.loop:
+dec rcx
+xor edx, edx
+idiv edi
+add dl, '0'
+mov byte[rcx], dl
+cmp eax, 0
+jne .loop
+cmp ebx, 0
+jle .print
+dec rcx
+mov byte[rcx], '-'
+.print:
+mov rax, 1
+mov rdi, 1
+mov rsi, rcx
+lea rdx, [rsp+16]
+sub rdx, rcx
+syscall
+add rsp, 16
+ret
+"
+
 { emit setup and stack }
 
 1000000
@@ -281,3 +550,5 @@ stack: resq "."
 % { drop iter }
 
 ]?
+
+ß
