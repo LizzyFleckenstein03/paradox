@@ -42,5 +42,3 @@ For convenience and to conform with the CG spec, paradox includes a `run.sh` scr
 ```sh
 ./run.sh my_file.false
 ```
-
-B/ß and \` are no-ops.
