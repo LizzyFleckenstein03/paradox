@@ -218,6 +218,18 @@ local function compile_fn()
 			strings = "str_" .. str_counter .. ": db " .. table.concat(str, ",") .. "\n" .. strings
 			str_counter = str_counter + 1
 			c = nil
+		elseif c == "`" then
+			while true do
+				local x = read_char()
+				if not x then
+					syntax_error("unterminated inline assembly")
+				end
+				if x == "`" then
+					break
+				end
+				io.write(x)
+			end
+			c = nil
 		elseif c == "[" then
 			local lambda = fn_counter
 			print("jmp end_" .. lambda)

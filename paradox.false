@@ -150,6 +150,19 @@
 			1_ { push true }
 		]?
 
+		{ elseif c = ` }
+		c;'`= $[%~1_\]?[
+			{ while read_char() != ` and state != ERROR }
+			[
+				r;!           { push read_char() }
+				$1_=["unterminated inline assembly"]e;! { check for EOF }
+				$'`=~ q;2=~ & { condition }
+			][,]#
+			% { drop ` or EOF }
+
+			1_ c: { consume current_char }
+		]?
+
 		{ elseif c = (opening bracket) }
 		c;91= $[%~1_\]?[
 			f;                 { backup fn_id }
