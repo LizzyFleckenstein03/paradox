@@ -26,7 +26,7 @@
 
 { read_char() }
 [
-	ß^ { input <- getchar() }
+	^ { input <- getchar() }
 	{ if input = newline }
 	$10=$[
 		l; 1+ l: { increment line_number }
