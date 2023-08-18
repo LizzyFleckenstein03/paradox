@@ -330,7 +330,7 @@ ret
 io.write([[
 global _start
 _start:
-lea r12, [1000000+8*"$."]
+lea r12, [stack+8*1000000]
 call fun_0
 mov rax, 60
 mov rdi, 0
