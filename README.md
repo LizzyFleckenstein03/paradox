@@ -39,6 +39,7 @@ diff stage2 paradox
 ## Additional notes
 
 For convenience and to conform with the CG spec, paradox includes a `run.sh` script that will automatically compile and execute a file.
+
 ```sh
 ./run.sh my_file.false
 ```
