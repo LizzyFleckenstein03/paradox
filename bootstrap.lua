@@ -271,7 +271,10 @@ local function compile_fn()
 
 	print("ret")
 
+	print("section .data")
 	io.write(strings)
+	print("section .text")
+
 	print("end_" .. fn_id .. ":")
 end
 
