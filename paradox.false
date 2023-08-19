@@ -433,6 +433,8 @@ mov [r12], ebx
 	q;2=~[
 		"ret" 10, { emit return to caller }
 
+		"section .data" 10,
+
 		{ string stack is top }
 		{ while top != -1 }
 		[$1_=~][
@@ -463,6 +465,8 @@ mov [r12], ebx
 			10, { newline }
 		]#
 		% { drop string stack end }
+
+		"section .text" 10,
 
 		{ function counter is top now }
 		"end_" . ":" 10, { end label }
