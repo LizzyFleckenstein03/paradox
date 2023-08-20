@@ -12,7 +12,7 @@ You can use an existing FALSE implementation or the included bootstrap.lua to bo
 
 ### Using bootstrap.lua
 
-For any given correct input, bootstrap.lua output is (supposed to be) equivalent to paradox output.
+For any given correct input, bootstrap.lua output is (supposed to be) equal to paradox output.
 This means you can use bootstrap.lua as a feature-complete substitue for paradox.
 
 ```sh
@@ -33,7 +33,7 @@ existing_run_false paradox.false < paradox.false > paradox.asm && nasm -f elf64 
 
 ## Recompiling self
 
-Paradox can (obviously) rebuild itself once it has been bootstrapped, and the result should be equivalent.
+Paradox can (obviously) rebuild itself once it has been bootstrapped, and the result should be equal.
 
 ```sh
 # rebuild paradox using itself
