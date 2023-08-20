@@ -119,3 +119,5 @@ It is possible to make memory allocations using strings by compiling your progra
 In the program, you can then use `12+;` at the beginning of the file to extract a pointer to your allocation.
 
 Since all operations fetch 64-bits, it is recommended to set the allocation size to 7 bytes higher than desired (if you wish to fetch/write the last few bytes of the allocation individually).
+
+As an example for pointer arithmetic, see `examples/brainfuck.false` which implements brainfuck using paradox pointer arithmetic.

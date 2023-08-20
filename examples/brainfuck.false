@@ -1,0 +1,59 @@
+{
+	to compile:
+
+	(echo "[\"$(head -c30007 /dev/zero)\"]" && cat brainfuck.false) | ../paradox \
+		 > brainfuck.asm && nasm -f elf64 brainfuck.asm && ld -o brainfuck brainfuck.o
+
+	REQUIRES PARADOX due to pointer arithmetic.
+
+	stdin is used for both the brainfuck program and its input, separated by a zero byte.
+	to read the program from a file and enter input interactively:
+
+	(cat your_program.b && echo -ne '\0' && cat) | ./brainfuck
+
+	example hello world brainfuck program to try:
+	echo '+[>>>->-[>->----<<<]>>]>.---.>+..+++.>>.<.>>---.<<<.+++.------.<-.>>+.' | ./brainfuck
+}
+12+;$$t:h:l:
+0d: { change this to 0d: to disable debugging, 1_d: to enable debugging }
+0[^$$1_=~\0=~&][\1+]#% $n:
+[
+	r:\r;+
+	1[$0=~][\
+		$2+ø
+		$'[=[@r;-@@]?
+		$']=[@r;+@@]?
+		%r;+
+	\]#%
+	r;-\
+]b:
+[$0=~][
+	d;[
+		"src: "
+		n;[$0=~][
+			$2ø=$[27,"[31m"]?
+			\$2+ø,1-\
+			[27,"[0m"]?
+		]#%
+		"mem: "
+		t;h; 1ø1ø>~[\]?% h:
+		l;[$h;>~][
+			$t;=$[27,"[31m"]?
+			\$;255&." "\
+			[27,"[0m"]?
+			1+
+		]#%
+		^%
+	]?
+
+	$ø
+	$'>=[t;1+$l;30000+=[%l;]?t:]?
+	$'<=[t;$l;=[%l;30000+]?1-t:]?
+	$'+=[t;$;$255~&\1+255&|\:]?
+	$'-=[t;$;$255~&\1-255&|\:]?
+	$'.=[t;;,]?
+	$',=[t;$;255~&^|\:]?
+	$'[=[t;;255&0=[1_b;!]?]?
+	$']=[t;;255&0=~[1b;!]?]?
+	%1-
+]#%

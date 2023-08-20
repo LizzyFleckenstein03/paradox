@@ -5,3 +5,6 @@
 !.gitignore
 !run.sh
 !LICENSE
+!examples
+examples/*
+!examples/brainfuck.false
