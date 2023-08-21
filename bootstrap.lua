@@ -296,22 +296,15 @@ writebuf: resb BUFSIZ
 section .text
 read:
 mov rax, [readbuf_cursor]
-mov rbx, [readbuf_len]
-cmp rax, rbx
+cmp rax, [readbuf_len]
 jb .has
-cmp rbx, BUFSIZ
-jb .fill
-xor rbx, rbx
-mov [readbuf_len], rbx
-mov [readbuf_cursor], rbx
-.fill:
 mov rax, 0
 mov rdi, 0
-lea rsi, [rbx+readbuf]
+mov rsi, readbuf
 mov rdx, BUFSIZ
-sub rdx, rbx
 syscall
-add [readbuf_len], rax
+mov [readbuf_len], rax
+mov qword[readbuf_cursor], 0
 cmp rax, 0
 jne .has
 mov eax, -1
