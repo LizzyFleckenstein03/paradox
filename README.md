@@ -59,11 +59,31 @@ Due to lack of `stderr` access in FALSE, syntax errors are emitted as `%fatal` N
 
 ### I/O Buffering
 
-Paradox implements buffered I/O. It uses a fixed buffer size of 8192. To change this, you can use `sed -i 's/8192/YOUR_BUFSIZE_HERE/g' paradox.false`. To find out an appropriate buffer size for your system, you can use the following command, if you have a C compiler installed:
+Paradox implements buffered I/O. You can use ß or B to flush buffered output.
+
+By default, paradox will use a buffer size of 8192, but this can be changed from the source code by using the "U" postfix on a number literal for example:
+
+```
+1024U
+```
+
+Sets the buffer size for the program to 1024 **statically, at compile time**. It is not possible to change the buffer size at runtime. If multiple of these statements are found, the one that comes last in the file will determine the buffer size. Note that there may not be a space between the integer literal and the U.
+
+To find out an appropriate buffer size for your system, you can use the following command, if you have a C compiler installed:
 
 ```
 echo '#include <stdio.h>\nBUFSIZ' | cpp | tail -n1
 ```
+
+### Adjusting stack size
+
+By default, paradox will use 8MiB for both call stack and data stack each. Changing this works similar to changing the buffer size, except S is used instead of U:
+
+```
+16777216S
+```
+
+Will set the stack size to 16MiB. This affects both call stack and data stack.
 
 ### Inline assembly
 
@@ -125,3 +145,32 @@ In the program, you can then use `2+;` at the beginning of the file to extract a
 Since all operations fetch 64-bits, it is recommended to set the allocation size to 7 bytes higher than desired (if you wish to fetch/write the last few bytes of the allocation individually).
 
 As an example for pointer arithmetic, see `examples/brainfuck.false` which implements brainfuck using paradox pointer arithmetic.
+
+### Building untrue
+
+For maximum FALSE meta, you can use paradox to compile the [untrue](https://github.com/appgurueu/codeguessing/blob/master/41/untrue.false) FALSE interpreter and the resulting binary can be used to run paradox.
+Note: Untrue will need an increased stack size to run many programs.
+
+```
+# download untrue
+curl https://raw.githubusercontent.com/appgurueu/codeguessing/master/41/untrue.false -o untrue.false
+
+# append command to set stack size to 128MiB
+echo "134217728S" >> untrue.false
+
+# build untrue
+./paradox < untrue.false > untrue.asm && nasm -f elf64 untrue.asm && ld untrue.o -o untrue
+
+# now, we will use untrue to run paradox to compile untrue!
+
+# untrue expects O and B symbols, substitute
+sed 's/ø/O/g;s/ß/B/g' paradox.false > paradox_subst.false
+
+# untrue expects program and input to be separated by '<'
+(cat paradox_subst.false && echo -n '<' && cat untrue.false) | time ./untrue | tee untrue2.asm
+
+# verify resulting assembly is equal
+diff untrue.asm untrue2.asm
+```
+
+Using untrue to run paradox to build paradox has also been tested (but takes significantly longer).

@@ -12,6 +12,9 @@
 	l: line_number
 	p: line_position
 
+	t: stack_size
+	u: buffer_size
+
 	x: compile_fn
 	r: read_char
 	e: error
@@ -23,6 +26,9 @@
 
 1  l: { line_number <- 1 }
 0  p: { line_position <- 0 }
+
+8388608 t: { stack_size <- 8MiB }
+8192    u: { buffer_size <- 8KiB }
 
 { read_char() }
 [
@@ -86,9 +92,22 @@
 
 		{ elseif current_int != -1 }
 		i;1_=~ $[%~1_\]?[
-			{ emit push int }
-			"sub r12, 8" 10,
-			"mov qword[r12], " i;. 10,
+			{ if current_char = S }
+			c;'S= $[
+				i; t: { stack_size <- current_int }
+				1_ c: { consume current_char }
+			]?
+			{ elseif current_char = U }
+			c;'U= $[%~1_\]?[
+				i; u: { buffer_size <- current_int }
+				1_ c: { consume current_char }
+			]?
+			{ else }
+			~[
+				{ emit push int }
+				"sub r12, 8" 10,
+				"mov qword[r12], " i;. 10,
+			]?
 
 			1_ i: { clear current_int }
 		]?
@@ -470,22 +489,25 @@ x;! { call compile_fn }
 { if state != ERROR }
 q;2=~[
 
-{ buffered I/O }
-8192
+{ emit constants }
+"%define STKSIZ " t;. 10,
+"%define BUFSIZ " u;. 10,
+
+{ emit builtin functions }
 "section .data
 readbuf_len: dq 0
 readbuf_cursor: dq 0
 writebuf_len: dq 0
 section .bss
-readbuf: resb "$."
-writebuf: resb "$."
+readbuf: resb BUFSIZ
+writebuf: resb BUFSIZ
 section .text
 read:
 mov rax, [readbuf_cursor]
 mov rbx, [readbuf_len]
 cmp rax, rbx
 jb .has
-cmp rbx, "$."
+cmp rbx, BUFSIZ
 jb .fill
 xor rbx, rbx
 mov [readbuf_len], rbx
@@ -494,7 +516,7 @@ mov [readbuf_cursor], rbx
 mov rax, 0
 mov rdi, 0
 lea rsi, [rbx+readbuf]
-mov rdx, "$."
+mov rdx, BUFSIZ
 sub rdx, rbx
 syscall
 add [readbuf_len], rax
@@ -509,7 +531,7 @@ inc qword[readbuf_cursor]
 ret
 write:
 mov rdi, [writebuf_len]
-mov rax, "$."
+mov rax, BUFSIZ
 sub rax, rdi
 add rdi, writebuf
 mov rdx, rcx
@@ -519,11 +541,11 @@ mov rcx, rax
 rep movsb
 push rsi
 push rdx
-mov qword[writebuf_len], "$."
+mov qword[writebuf_len], BUFSIZ
 call flush
 pop rdx
 pop rsi
-cmp rdx, "$."
+cmp rdx, BUFSIZ
 ja .direct
 mov rcx, rdx
 mov rdi, writebuf
@@ -547,10 +569,7 @@ syscall
 mov qword[writebuf_len], 0
 .return:
 ret
-"%
-
-{ builtin functions }
-"conditional:
+conditional:
 add r12, 16
 mov eax, [r12-8]
 cmp eax, 0
@@ -605,22 +624,19 @@ sub rcx, rsi
 call write
 add rsp, 16
 ret
-"
-
-{ emit _start and stack }
-
-1000000
-"global _start
+global _start
 _start:
-lea r12, [stack+8*"$."]
+lea r12, [data_stack+STKSIZ]
+lea rsp, [call_stack+STKSIZ]
 call fun_0
 call flush
 mov rax, 60
 mov rdi, 0
 syscall
 section .bss
-stack: resq "$."
-"%
+data_stack: resq STKSIZ
+call_stack: resq STKSIZ
+"
 
 { emit variables }
 

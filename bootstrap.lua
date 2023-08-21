@@ -135,6 +135,9 @@ local current_int
 local line_number = 1
 local line_position = 0
 
+local stack_size = 8388608
+local buffer_size = 8192
+
 local c
 
 local function read_char()
@@ -174,8 +177,16 @@ local function compile_fn()
 			current_int = current_int * 10 + tonumber(c)
 			c = nil
 		elseif current_int then
-			print("sub r12, 8")
-			print("mov qword[r12], " .. current_int)
+			if c == "S" then
+				stack_size = current_int
+				c = nil
+			elseif c == "U" then
+				buffer_size = current_int
+				c = nil
+			else
+				print("sub r12, 8")
+				print("mov qword[r12], " .. current_int)
+			end
 			current_int = nil
 		elseif c and c:match("[a-z]") then
 			print("sub r12, 8")
@@ -271,21 +282,24 @@ print("section .text")
 
 compile_fn()
 
+print("%define STKSIZ " .. stack_size)
+print("%define BUFSIZ " .. buffer_size)
+
 io.write([[
 section .data
 readbuf_len: dq 0
 readbuf_cursor: dq 0
 writebuf_len: dq 0
 section .bss
-readbuf: resb 8192
-writebuf: resb 8192
+readbuf: resb BUFSIZ
+writebuf: resb BUFSIZ
 section .text
 read:
 mov rax, [readbuf_cursor]
 mov rbx, [readbuf_len]
 cmp rax, rbx
 jb .has
-cmp rbx, 8192
+cmp rbx, BUFSIZ
 jb .fill
 xor rbx, rbx
 mov [readbuf_len], rbx
@@ -294,7 +308,7 @@ mov [readbuf_cursor], rbx
 mov rax, 0
 mov rdi, 0
 lea rsi, [rbx+readbuf]
-mov rdx, 8192
+mov rdx, BUFSIZ
 sub rdx, rbx
 syscall
 add [readbuf_len], rax
@@ -309,7 +323,7 @@ inc qword[readbuf_cursor]
 ret
 write:
 mov rdi, [writebuf_len]
-mov rax, 8192
+mov rax, BUFSIZ
 sub rax, rdi
 add rdi, writebuf
 mov rdx, rcx
@@ -319,11 +333,11 @@ mov rcx, rax
 rep movsb
 push rsi
 push rdx
-mov qword[writebuf_len], 8192
+mov qword[writebuf_len], BUFSIZ
 call flush
 pop rdx
 pop rsi
-cmp rdx, 8192
+cmp rdx, BUFSIZ
 ja .direct
 mov rcx, rdx
 mov rdi, writebuf
@@ -402,19 +416,18 @@ sub rcx, rsi
 call write
 add rsp, 16
 ret
-]])
-
-io.write([[
 global _start
 _start:
-lea r12, [stack+8*1000000]
+lea r12, [data_stack+STKSIZ]
+lea rsp, [call_stack+STKSIZ]
 call fun_0
 call flush
 mov rax, 60
 mov rdi, 0
 syscall
 section .bss
-stack: resq 1000000
+data_stack: resq STKSIZ
+call_stack: resq STKSIZ
 ]])
 
 print("section .data")
