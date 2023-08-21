@@ -110,31 +110,22 @@ mov rax, [rax]
 mov [r12], rax
 ]],
 	[","] = [[
-mov rax, 1
-mov rdi, 1
 mov rsi, r12
-mov rdx, 1
-syscall
+mov rcx, 1
+call write
 add r12, 8
 ]],
 	["^"] = [[
+call read
 sub r12, 8
-mov qword[r12], 0
-mov rax, 0
-mov rdi, 0
-mov rsi, r12
-mov rdx, 1
-syscall
-mov ebx, [r12]
-mov ecx, -1
-cmp rax, 0
-cmove ebx, ecx
-mov [r12], ebx
+mov [r12], eax
 ]],
 	["."] = [[
 call print_num
 ]],
-	["B"] = "",
+	["B"] = [[
+call flush
+]],
 }
 
 local fn_counter = 0
@@ -210,11 +201,9 @@ local function compile_fn()
 				end
 				table.insert(str, x:byte(1))
 			end
-			print("mov rax, 1")
-			print("mov rdi, 1")
 			print("mov rsi, str_" .. str_counter)
-			print("mov rdx, " .. #str)
-			print("syscall")
+			print("mov rcx, " .. #str)
+			print("call write")
 			strings = "str_" .. str_counter .. ": db " .. table.concat(str, ",") .. "\n" .. strings
 			str_counter = str_counter + 1
 			c = nil
@@ -283,6 +272,81 @@ print("section .text")
 compile_fn()
 
 io.write([[
+section .data
+readbuf_len: dq 0
+readbuf_cursor: dq 0
+writebuf_len: dq 0
+section .bss
+readbuf: resb 8192
+writebuf: resb 8192
+section .text
+read:
+mov rax, [readbuf_cursor]
+mov rbx, [readbuf_len]
+cmp rax, rbx
+jb .has
+cmp rbx, 8192
+jb .fill
+xor rbx, rbx
+mov [readbuf_len], rbx
+mov [readbuf_cursor], rbx
+.fill:
+mov rax, 0
+mov rdi, 0
+lea rsi, [rbx+readbuf]
+mov rdx, 8192
+sub rdx, rbx
+syscall
+add [readbuf_len], rax
+cmp rax, 0
+jne .has
+mov eax, -1
+ret
+.has:
+mov rax, [readbuf_cursor]
+movzx eax, byte[readbuf+rax]
+inc qword[readbuf_cursor]
+ret
+write:
+mov rdi, [writebuf_len]
+mov rax, 8192
+sub rax, rdi
+add rdi, writebuf
+mov rdx, rcx
+sub rdx, rax
+jna .simple
+mov rcx, rax
+rep movsb
+push rsi
+push rdx
+mov qword[writebuf_len], 8192
+call flush
+pop rdx
+pop rsi
+cmp rdx, 8192
+ja .direct
+mov rcx, rdx
+mov rdi, writebuf
+.simple:
+add [writebuf_len], rcx
+rep movsb
+ret
+.direct:
+mov rax, 1
+mov rdi, 1
+syscall
+ret
+flush:
+mov rdx, [writebuf_len]
+cmp rdx, 0
+je .return
+mov rax, 1
+mov rdi, 1
+mov rsi, writebuf
+syscall
+mov qword[writebuf_len], 0
+.return:
+ret
 conditional:
 add r12, 16
 mov eax, [r12-8]
@@ -332,12 +396,10 @@ jle .print
 dec rcx
 mov byte[rcx], '-'
 .print:
-mov rax, 1
-mov rdi, 1
 mov rsi, rcx
-lea rdx, [rsp+16]
-sub rdx, rcx
-syscall
+lea rcx, [rsp+16]
+sub rcx, rsi
+call write
 add rsp, 16
 ret
 ]])
@@ -347,6 +409,7 @@ global _start
 _start:
 lea r12, [stack+8*1000000]
 call fun_0
+call flush
 mov rax, 60
 mov rdi, 0
 syscall

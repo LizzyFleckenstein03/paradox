@@ -138,11 +138,9 @@
 				$ 1+ s: { increment str_counter }
 
 				{ emit print string }
-				"mov rax, 1" 10,
-				"mov rdi, 1" 10,
 				"mov rsi, str_" 0 ø . 10,
-				"mov rdx, "     1 ø . 10,
-				"syscall" 10,
+				"mov rcx, "     1 ø . 10,
+				"call write" 10,
 
 				1_ c: { consume current_char }
 			]?
@@ -390,29 +388,18 @@ mov [r12], rax
 
 		{ elseif c = , }
 		c;',= $[%~1_\]?[
-"mov rax, 1
-mov rdi, 1
-mov rsi, r12
-mov rdx, 1
-syscall
+"mov rsi, r12
+mov rcx, 1
+call write
 add r12, 8
 "
 		1_ c:]?
 
 		{ elseif c = ^ }
 		c;'^= $[%~1_\]?[
-"sub r12, 8
-mov qword[r12], 0
-mov rax, 0
-mov rdi, 0
-mov rsi, r12
-mov rdx, 1
-syscall
-mov ebx, [r12]
-mov ecx, -1
-cmp rax, 0
-cmove ebx, ecx
-mov [r12], ebx
+"call read
+sub r12, 8
+mov [r12], eax
 "
 		1_ c:]?
 
@@ -423,7 +410,10 @@ mov [r12], ebx
 		1_ c:]?
 
 		{ elseif c = B }
-		c;'B= $[%~1_\]?[1_ c:]?
+		c;'B= $[%~1_\]?[
+"call flush
+"
+		1_ c:]?
 
 		{ else error }
 		~["unknown character: "c;,]e;!
@@ -480,6 +470,85 @@ x;! { call compile_fn }
 { if state != ERROR }
 q;2=~[
 
+{ buffered I/O }
+8192
+"section .data
+readbuf_len: dq 0
+readbuf_cursor: dq 0
+writebuf_len: dq 0
+section .bss
+readbuf: resb "$."
+writebuf: resb "$."
+section .text
+read:
+mov rax, [readbuf_cursor]
+mov rbx, [readbuf_len]
+cmp rax, rbx
+jb .has
+cmp rbx, "$."
+jb .fill
+xor rbx, rbx
+mov [readbuf_len], rbx
+mov [readbuf_cursor], rbx
+.fill:
+mov rax, 0
+mov rdi, 0
+lea rsi, [rbx+readbuf]
+mov rdx, "$."
+sub rdx, rbx
+syscall
+add [readbuf_len], rax
+cmp rax, 0
+jne .has
+mov eax, -1
+ret
+.has:
+mov rax, [readbuf_cursor]
+movzx eax, byte[readbuf+rax]
+inc qword[readbuf_cursor]
+ret
+write:
+mov rdi, [writebuf_len]
+mov rax, "$."
+sub rax, rdi
+add rdi, writebuf
+mov rdx, rcx
+sub rdx, rax
+jna .simple
+mov rcx, rax
+rep movsb
+push rsi
+push rdx
+mov qword[writebuf_len], "$."
+call flush
+pop rdx
+pop rsi
+cmp rdx, "$."
+ja .direct
+mov rcx, rdx
+mov rdi, writebuf
+.simple:
+add [writebuf_len], rcx
+rep movsb
+ret
+.direct:
+mov rax, 1
+mov rdi, 1
+syscall
+ret
+flush:
+mov rdx, [writebuf_len]
+cmp rdx, 0
+je .return
+mov rax, 1
+mov rdi, 1
+mov rsi, writebuf
+syscall
+mov qword[writebuf_len], 0
+.return:
+ret
+"%
+
 { builtin functions }
 "conditional:
 add r12, 16
@@ -530,29 +599,28 @@ jle .print
 dec rcx
 mov byte[rcx], '-'
 .print:
-mov rax, 1
-mov rdi, 1
 mov rsi, rcx
-lea rdx, [rsp+16]
-sub rdx, rcx
-syscall
+lea rcx, [rsp+16]
+sub rcx, rsi
+call write
 add rsp, 16
 ret
 "
 
-{ emit setup and stack }
+{ emit _start and stack }
 
 1000000
 "global _start
 _start:
 lea r12, [stack+8*"$."]
 call fun_0
+call flush
 mov rax, 60
 mov rdi, 0
 syscall
 section .bss
-stack: resq "."
-"
+stack: resq "$."
+"%
 
 { emit variables }
 
